@@ -12,7 +12,10 @@ def chat(messages):
     }
     r = requests.post(OLLAMA_URL, json=payload, timeout=120)
     r.raise_for_status()
-    return r.json()["message"]["content"]
+    answer = r.json()
+    # print(f"Resposta da LLM: {answer}\n")
+    # print(f"Tempo total de execução: {answer['total_duration']/1000 } s.\n")
+    return answer["message"]["content"]
 
 
 def main():
