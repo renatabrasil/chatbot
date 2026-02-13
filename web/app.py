@@ -1,19 +1,21 @@
 import sys
 from pathlib import Path
 
+
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import streamlit as st
-
-from core.orchestrator import detect_tool
-from providers.ollama_provider import ollama_chat
-from tools.wikipedia_tool import wikipedia_search
-
-
+from core.tyoes import Message
+from core.orchestrator_langchain import OrchestratorLangChain
+from core.orchestrator import detect_tool, run
 
 # ------------------ Streamlit ------------------
+
+orch = OrchestratorLangChain()
+
 st.set_page_config(page_title="Chatbot + Tools + Metrics", layout="wide")
 st.title("Chatbot (Ollama) com Tools, Métricas e Trace")
 
@@ -25,7 +27,7 @@ if "messages" not in st.session_state:
 if "trace" not in st.session_state:
     st.session_state.trace = []
 
-col_chat, col_debug = st.columns([2,1])
+col_chat, col_debug = st.columns([2, 1])
 
 with col_chat:
     st.subheader("Chat")
@@ -36,23 +38,28 @@ with col_chat:
 
     user = st.text_input("Digite sua mensagem (use /wiki <termo> para buscar na Wikipedia):", "")
     if st.button("Enviar") and user.strip():
-        # 1) tool router
-        tool_name, tool_arg = detect_tool(user)
-        st.session_state.trace.append({"event": "user_input", "text": user})
 
-        if tool_name == "wikipedia_search":
-            st.session_state.trace.append({"event": "tool_call", "tool": tool_name})
-            tool_out = wikipedia_search(tool_arg)
-            st.session_state.trace.append({"event": "tool_result", "tool": tool_name})
+        with st.spinner("Pensando..."):
+            try:
+                # 1) tool router
+                tool_name, tool_arg = detect_tool(user)
+                st.session_state.trace.append({"event": "user_input", "text": user})
 
-            # injeta tool output no chat como contexto
-            st.session_state.messages.append({"role": "user", "content": user})
-            st.session_state.messages.append({"role": "assistant", "content": f"Resultado do /wiki:\n{tool_out}\n\nO que você quer fazer com isso?"})
-        else:
-            st.session_state.messages.append({"role": "user", "content": user})
-            answer, metrics = ollama_chat(st.session_state.messages)
-            st.session_state.messages.append({"role": "assistant", "content": answer})
-            st.session_state.trace.append({"event": "model_response", "metrics": metrics})
+                # result = run(tool_name, tool_arg, user_text=user, session_messages=st.session_state.messages,
+                #              session_traces=st.session_state.trace)
+
+                result = orch.run(messages=st.session_state.messages, user_text=user.strip())
+
+
+            except Exception as e:
+                st.error(f"Erro: {e}")
+                st.stop()
+
+        st.session_state.messages.append({"role":"user", "content":user.strip()})
+        st.session_state.messages.append({"role": "assistant", "content": result.answer})
+
+        st.session_state.trace = result.trace
+        st.session_state.metrics = result.metrics.__dict__
 
         st.rerun()
 
