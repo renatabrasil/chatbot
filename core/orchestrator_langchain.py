@@ -30,7 +30,8 @@ class OrchestratorLangChain:
                 name="wikipedia_search",
                 description=(
                     "Search Wikipedia for general knowledge. "
-                    "Use when the user asks about factual topics, people, places, history, etc."
+                    "Use when the user asks about factual topics, people, places, history, etc. "
+                    "You must use this tool only if user explicit requers an info."
                 ),
                 func=wikipedia_search,
                 args_schema=WikipediaArgs,
@@ -41,7 +42,8 @@ class OrchestratorLangChain:
         prompt = ChatPromptTemplate.from_messages(
             [
                 ("system", "Você é um assistente útil. Use ferrametnas quando necessário. "
-                 "Se não souber, diga 'não sei'. Não invente fatos."),
+                 "Se não souber, diga 'não sei'. Não invente fatos. "
+                 "Não chame ferramenta se não for estritamente necessário, ou seja, se vc não souber uma informação. Ex: smalltalk não precisa chamar ferramenta."),
                 MessagesPlaceholder(variable_name="chat_history"),
                 ("human", "{input}"),
                 MessagesPlaceholder(variable_name="agent_scratchpad"),
