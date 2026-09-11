@@ -15,7 +15,7 @@ def wikipedia_search(query: str, limit: int = 3, lang: str = "eng") -> str:
         "User-Agent": "renata-genai-chatbot/0.1 (learning project; contact: none)",
         "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
     }
-    r = requests.get(url, params=params, headers=headers, timeout=15)
+    r = requests.get(url=url, params=params, headers=headers, timeout=15)
     r.raise_for_status()
     data = r.json()
     results = data.get("query", {}).get("search", [])
