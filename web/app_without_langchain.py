@@ -7,7 +7,7 @@ if str(ROOT) not in sys.path:
 
 import streamlit as st
 
-from core.orchestrator import detect_tool
+from core.orchestrator import _detect_tool
 from providers.ollama_provider import ollama_chat
 from tools.wikipedia_tool import wikipedia_search
 
@@ -37,7 +37,7 @@ with col_chat:
     user = st.text_input("Digite sua mensagem (use /wiki <termo> para buscar na Wikipedia):", "")
     if st.button("Enviar") and user.strip():
         # 1) tool router
-        tool_name, tool_arg = detect_tool(user)
+        tool_name, tool_arg = _detect_tool(user)
         st.session_state.trace.append({"event": "user_input", "text": user})
 
         if tool_name == "wikipedia_search":
