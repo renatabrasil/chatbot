@@ -22,10 +22,10 @@ st.title("Chatbot Web (Streamlit) — camadas separadas")
 
 
 
-USE_LANGCHAIN = False
+USE_LANGCHAIN = True
 
 if USE_LANGCHAIN:
-    orch = OrchestratorLangChain()
+    orch = OrchestratorLangChain(model_name="amazon.nova-lite-v1:0", model_provider="bedrock")
 else:
     # provider = OllamaProvider(model="llama3.2:3b")
     provider = BedrockProvider(
