@@ -73,23 +73,14 @@ for bloco in mensagem_modelo["content"]:
         },
     ]
 
-    resposta_final = provider.client.converse(
-        modelId=provider.model,
+    resposta_final = provider.converse(
         messages=historico_bedrock,
-        system=[{
-            "text": (
+        tools=[BUSCAR_VOOS_TOOL_SPEC],
+        system=(
                 "Responda em português. "
                 "Informe claramente quando as ofertas forem simuladas. "
                 "Use apenas os dados retornados pela ferramenta."
-            )
-        }],
-        toolConfig={
-        "tools": [BUSCAR_VOOS_TOOL_SPEC],
-        },
-        inferenceConfig={
-            "temperature": provider.temperature,
-            "maxTokens": provider.max_tokens,
-        },
+            ),
     )
 
     print("Motivo da parada:", resposta_final["stopReason"])

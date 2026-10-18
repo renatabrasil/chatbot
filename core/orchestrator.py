@@ -1,11 +1,15 @@
+import time
 from typing import Optional, Tuple, List
 from uuid import uuid4
+
+from pydantic import ValidationError
 
 from core.router import Router
 from core.tracing import Tracer
 from core.types import Message, ChatResult, ModelMetrics
 from observability.logger import JsonlObservabilityLogger
 from providers.base import LLMProvider
+from tools.flights_tool import BUSCAR_VOOS_TOOL_SPEC, BuscarVoosArgs, buscar_voos
 from tools.local_kb_tool import search_local_kb
 from tools.wikipedia_tool import wikipedia_search
 
@@ -125,14 +129,16 @@ class Orchestrator:
                     trace=tracer.events,
                 )
 
-            # Chama o modelo (se não for para usar a ferramenta)
-            messages2 = messages + [Message(role="user", content=user_text)]
-            tracer.add("model_call", model=getattr(self.provider, "model", "unknown"))
-            answer, metrics = self.provider.chat(messages2)
-            tracer.add("model_response",
-                       latency_ms=metrics.latency_ms,
-                       prompt_tokens=metrics.prompt_tokens,
-                       completion_tokens=metrics.completion_tokens)
+            answer, metrics = self._run_agent_with_tools(
+                messages=messages,
+                user_text=user_text,
+                tracer=tracer,
+            )
+
+            tracer.add(
+                "final_answer",
+                text=answer,
+            )
 
             self._log_request_event(
                 request_id=request_id,
@@ -216,3 +222,173 @@ class Orchestrator:
             return search_local_kb(query=query, max_results=3)
 
         return "Não sei."
+
+    def _run_agent_with_tools(
+        self,
+        messages: List[Message],
+        user_text: str,
+        tracer: Tracer,
+    ) -> tuple[str, ModelMetrics]:
+        start = time.perf_counter()
+
+        system_parts = [
+            m.content for m in messages if m.role == "system"
+        ]
+        system_parts.append(
+            "Você pode consultar ofertas de voos pela ferramenta buscar_voos. "
+            "Peça os campos obrigatórios que estiverem faltando. "
+            "Não invente datas nem resultados de ferramentas. "
+            "Informe claramente quando as ofertas forem simuladas."
+        )
+
+        # Histórico no formato nativo do Bedrock.
+        working = [
+            {
+                "role": m.role,
+                "content": [{"text": m.content}],
+            }
+            for m in messages
+            if m.role in {"user", "assistant"}
+        ]
+        working.append({
+            "role": "user",
+            "content": [{"text": user_text}],
+        })
+
+        input_tokens = 0
+        output_tokens = 0
+        answer = "Não consegui concluir dentro do limite de chamadas."
+
+        max_calls = 4
+
+        for step in range(1, max_calls + 1):
+            response = self.provider.converse(
+                messages=working,
+                tools=[BUSCAR_VOOS_TOOL_SPEC],
+                system="\n\n".join(system_parts),
+            )
+
+            usage = response.get("usage", {})
+            input_tokens += usage.get("inputTokens", 0)
+            output_tokens += usage.get("outputTokens", 0)
+
+            stop_reason = response["stopReason"]
+            model_message = response["output"]["message"]
+
+            tracer.add(
+                "agent_model_response",
+                step=step,
+                stop_reason=stop_reason,
+                prompt_tokens=usage.get("inputTokens", 0),
+                completion_tokens=usage.get("outputTokens", 0),
+            )
+
+            working.append(model_message)
+
+            if stop_reason == "end_turn":
+                answer = "\n".join(
+                    block["text"]
+                    for block in model_message["content"]
+                    if "text" in block
+                ).strip()
+
+                if not answer:
+                    answer = "O modelo encerrou sem uma resposta em texto."
+
+                break
+
+            if stop_reason != "tool_use":
+                answer = (
+                    "A resposta foi interrompida antes de concluir. "
+                    f"Motivo: {stop_reason}."
+                )
+                break
+
+            # Não executa uma ferramenta se não houver
+            # outra chamada disponível para interpretar seu resultado.
+            if step == max_calls:
+                tracer.add("agent_max_calls", max_calls=max_calls)
+                break
+
+            tool_results = []
+
+            for block in model_message["content"]:
+                if "toolUse" not in block:
+                    continue
+
+                pedido = block["toolUse"]
+                tool_name = pedido["name"]
+                tool_start = time.perf_counter()
+
+                tracer.add(
+                    "tool_call",
+                    step=step,
+                    tool=tool_name,
+                    tool_input=pedido["input"],
+                )
+
+                status = "success"
+
+                if tool_name != "buscar_voos":
+                    status = "error"
+                    result = {
+                        "erro": "Ferramenta não permitida."
+                    }
+                else:
+                    try:
+                        args = BuscarVoosArgs.model_validate(
+                            pedido["input"]
+                        )
+                        result = buscar_voos(args)
+
+                    except ValidationError as error:
+                        status = "error"
+                        result = {
+                            "erro": "Argumentos inválidos.",
+                            "detalhes": str(error),
+                        }
+
+                    except Exception:
+                        status = "error"
+                        result = {
+                            "erro": "Falha ao consultar voos."
+                        }
+
+                tracer.add(
+                    "tool_result",
+                    step=step,
+                    tool=tool_name,
+                    status=status,
+                    tool_latency_ms=round(
+                        (time.perf_counter() - tool_start) * 1000,
+                        1,
+                    ),
+                )
+
+                tool_results.append({
+                    "toolResult": {
+                        "toolUseId": pedido["toolUseId"],
+                        "status": status,
+                        "content": [{"json": result}],
+                    }
+                })
+
+            if not tool_results:
+                answer = "O modelo pediu uma ferramenta sem informar a chamada."
+                break
+
+            working.append({
+                "role": "user",
+                "content": tool_results,
+            })
+
+        metrics = ModelMetrics(
+            latency_ms=round(
+                (time.perf_counter() - start) * 1000,
+                1,
+            ),
+            prompt_tokens=input_tokens,
+            completion_tokens=output_tokens,
+        )
+
+        return answer, metrics

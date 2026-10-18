@@ -107,3 +107,28 @@ class BedrockProvider:
             params["system"] = system_texts
 
         return self.client.converse(**params)
+
+    def converse(
+            self,
+            messages: list[dict],
+            tools: list[dict],
+            system: str | None = None,
+    ) -> dict:
+        params = {
+            "modelId": self.model,
+            "messages": messages,
+            "inferenceConfig": {
+                "temperature": self.temperature,
+                "maxTokens": self.max_tokens,
+            },
+        }
+
+        if tools:
+            params["toolConfig"] = {
+                "tools": tools
+            }
+
+        if system:
+            params["system"] = [{"text": system}]
+
+        return self.client.converse(**params)
