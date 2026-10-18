@@ -19,9 +19,6 @@ st.set_page_config(page_title="GenAI Web (Híbrido)", layout="wide")
 st.title("Chatbot Web (Streamlit) — camadas separadas")
 
 
-
-
-
 USE_LANGCHAIN = True
 
 if USE_LANGCHAIN:
