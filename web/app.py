@@ -33,6 +33,12 @@ else:
     )
     orch = Orchestrator(provider)
 
+    modo_voos = st.sidebar.checkbox(
+        "Modo busca de voos",
+        value=False,
+        help="Interpreta os critérios e valida antes de consultar.",
+    )
+
 if "messages" not in st.session_state:
     st.session_state.messages = [
         Message(role="system", content="Você é um assistente útil e direto. Se não souber, diga 'não sei'. Não invente fatos.")
@@ -56,7 +62,11 @@ with col_chat:
 
     user_text = st.text_input(label="Mensagem:", value="")
     if st.button("Enviar") and user_text.strip():
-        result = orch.run(messages=st.session_state.messages, user_text=user_text.strip())
+        result = orch.run(
+            messages=st.session_state.messages,
+            user_text=user_text.strip(),
+            modo_voos=modo_voos,
+        )
         # atualiza conversa
         st.session_state.messages.append(Message(role="user", content=user_text.strip()))
         st.session_state.messages.append(Message(role="assistant", content=result.answer))

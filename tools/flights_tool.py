@@ -3,6 +3,59 @@ from datetime import date
 from pydantic import BaseModel, Field, model_validator
 
 
+class InterpretacaoBuscarVoos(BaseModel):
+    origem: str | None = Field(
+        default=None,
+        description=(
+            "Código IATA da origem informado na conversa. "
+            "Se não estiver definido, use null."
+        ),
+    )
+    destino: str | None = Field(
+        default=None,
+        description=(
+            "Código IATA do destino informado na conversa. "
+            "Se não estiver definido, use null."
+        ),
+    )
+    data_ida: date | None = Field(
+        default=None,
+        description=(
+            "Data de ida no formato YYYY-MM-DD. "
+            "Se não estiver definida, use null."
+        ),
+    )
+    data_volta: date | None = Field(
+        default=None,
+        description=(
+            "Data de volta no formato YYYY-MM-DD. "
+            "Se não estiver definida, use null."
+        ),
+    )
+    adultos: int | None = Field(
+        default=None,
+        description=(
+            "Quantidade de adultos informada na conversa. "
+            "Se não estiver definida, use null."
+        ),
+    )
+
+    def campos_faltantes(self) -> list[str]:
+        campos = [
+            "origem",
+            "destino",
+            "data_ida",
+            "data_volta",
+            "adultos",
+        ]
+
+        return [
+            campo
+            for campo in campos
+            if getattr(self, campo) is None
+        ]
+
+
 class BuscarVoosArgs(BaseModel):
     origem: str = Field(
         pattern=r"^[A-Z]{3}$",
