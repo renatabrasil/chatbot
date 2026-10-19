@@ -19,13 +19,10 @@ st.set_page_config(page_title="GenAI Web (Híbrido)", layout="wide")
 st.title("Chatbot Web (Streamlit) — camadas separadas")
 
 
-
-
-
 USE_LANGCHAIN = False
 
 if USE_LANGCHAIN:
-    orch = OrchestratorLangChain()
+    orch = OrchestratorLangChain(model_name="amazon.nova-lite-v1:0", model_provider="bedrock")
 else:
     # provider = OllamaProvider(model="llama3.2:3b")
     provider = BedrockProvider(
@@ -35,6 +32,12 @@ else:
         region_name="us-east-1",
     )
     orch = Orchestrator(provider)
+
+    modo_voos = st.sidebar.checkbox(
+        "Modo busca de voos",
+        value=False,
+        help="Interpreta os critérios e valida antes de consultar.",
+    )
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
@@ -59,7 +62,11 @@ with col_chat:
 
     user_text = st.text_input(label="Mensagem:", value="")
     if st.button("Enviar") and user_text.strip():
-        result = orch.run(messages=st.session_state.messages, user_text=user_text.strip())
+        result = orch.run(
+            messages=st.session_state.messages,
+            user_text=user_text.strip(),
+            modo_voos=modo_voos,
+        )
         # atualiza conversa
         st.session_state.messages.append(Message(role="user", content=user_text.strip()))
         st.session_state.messages.append(Message(role="assistant", content=result.answer))

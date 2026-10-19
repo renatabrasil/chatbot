@@ -5,6 +5,7 @@ from typing import List, Optional, Tuple
 import boto3
 
 from core.types import Message, ModelMetrics
+from tools.flights_tool import BUSCAR_VOOS_TOOL_SPEC
 
 
 class BedrockProvider:
@@ -76,3 +77,58 @@ class BedrockProvider:
         )
 
         return answer, model_metrics
+
+    def solicitar_com_ferramentas(self, messages: List[Message]) -> dict:
+        system_texts = []
+        bedrock_messages = []
+
+        for message in messages:
+            if message.role == "system":
+                system_texts.append({"text": message.content})
+            else:
+                bedrock_messages.append({
+                    "role": message.role,
+                    "content": [{"text": message.content}],
+                })
+
+        params = {
+            "modelId": self.model,
+            "messages": bedrock_messages,
+            "inferenceConfig": {
+                "temperature": self.temperature,
+                "maxTokens": self.max_tokens,
+            },
+            "toolConfig": {
+                "tools": [BUSCAR_VOOS_TOOL_SPEC],
+            },
+        }
+
+        if system_texts:
+            params["system"] = system_texts
+
+        return self.client.converse(**params)
+
+    def converse(
+            self,
+            messages: list[dict],
+            tools: list[dict],
+            system: str | None = None,
+    ) -> dict:
+        params = {
+            "modelId": self.model,
+            "messages": messages,
+            "inferenceConfig": {
+                "temperature": self.temperature,
+                "maxTokens": self.max_tokens,
+            },
+        }
+
+        if tools:
+            params["toolConfig"] = {
+                "tools": tools
+            }
+
+        if system:
+            params["system"] = [{"text": system}]
+
+        return self.client.converse(**params)

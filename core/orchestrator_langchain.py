@@ -6,6 +6,7 @@ from langchain_classic.agents import create_tool_calling_agent, AgentExecutor
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import StructuredTool
 from langchain_ollama import ChatOllama
+from langchain_aws import ChatBedrockConverse
 from pydantic import BaseModel, Field, field_validator
 
 from core.router import Router
@@ -56,14 +57,33 @@ def local_kb_search_simple(query) -> str:
 
 
 class OrchestratorLangChain:
-    def __init__(self, model_name: str = "llama3.2:3b"):
+    def __init__(
+        self,
+        model_name: str = "llama3.2:3b",
+        model_provider: str = "ollama",
+        region_name: str = "us-east-1",
+        temperature: float = 0.0,
+        max_tokens: int = 800,
+    ):
         self.router = Router()
 
         # LLM via LangChain wrapper
-        self.llm = ChatOllama(
-            model=model_name,
-            temperature=0.0,
-        )
+        if model_provider == "ollama":
+            self.llm = ChatOllama(
+                model=model_name,
+                temperature=temperature,
+            )
+        elif model_provider == "bedrock":
+            self.llm = ChatBedrockConverse(
+                model=model_name,
+                region_name=region_name,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        else:
+            raise ValueError(
+                f"Provedor de modelo não suportado: {model_provider}"
+            )
 
 
         # Tool definition
