@@ -7,3 +7,4 @@ langchain-classic
 langchain-core
 langchain-ollama
 langchain-aws
+boto3

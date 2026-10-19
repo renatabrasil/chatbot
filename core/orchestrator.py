@@ -497,9 +497,9 @@ class Orchestrator:
         ):
             text = "\n".join(linhas[1:-1]).strip()
 
-        print("RESPOSTA BRUTA DA INTERPRETAÇÃO:", repr(text))
+        # print("RESPOSTA BRUTA DA INTERPRETAÇÃO:", repr(text))
         interpretacao = InterpretacaoBuscarVoos.model_validate_json(text)
-        print("RESPOSTA BRUTA DA INTERPRETAÇÃO:", repr(text))
+        # print("RESPOSTA BRUTA DA INTERPRETAÇÃO:", repr(text))
 
         usage = response.get("usage", {})
 
